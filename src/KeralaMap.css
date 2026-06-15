@@ -227,7 +227,7 @@ input {
 .leaflet-marker-pane,
 .leaflet-tooltip-pane,
 .leaflet-pane {
-  background: #1f7a4f !important;
+  background: transparent !important;
 }
 
 .leaflet-tile,
