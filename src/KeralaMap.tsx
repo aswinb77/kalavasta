@@ -1,6 +1,6 @@
 import { type ChangeEvent, useCallback, useEffect, useRef, useState } from 'react';
 import L from 'leaflet';
-import type { Feature, FeatureCollection } from 'geojson';
+import type { Feature } from 'geojson';
 import 'leaflet/dist/leaflet.css';
 import './KeralaMap.css';
 import { keralaDistricts } from './keralaDistricts';
