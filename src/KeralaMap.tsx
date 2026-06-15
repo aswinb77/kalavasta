@@ -1,5 +1,6 @@
 import { type ChangeEvent, useCallback, useEffect, useRef, useState } from 'react';
 import L from 'leaflet';
+import type { Feature, FeatureCollection } from 'geojson';
 import 'leaflet/dist/leaflet.css';
 import './KeralaMap.css';
 import { keralaDistricts } from './keralaDistricts';
@@ -96,7 +97,7 @@ function getDistrictFillColor(districtName: string) {
 }
 
 // outline of kerala
-function style(feature: GeoJSON.Feature): L.PathOptions {
+function style(feature: Feature): L.PathOptions {
   const districtName = feature.properties?.name as string;
   return {
     fillColor: getDistrictFillColor(districtName),
@@ -240,7 +241,7 @@ export default function KeralaMap() {
 
       const geojson = L.geoJson(keralaDistricts, {
         style: style as L.StyleFunction,
-        onEachFeature(feature, layer) {
+        onEachFeature(feature: Feature, layer: L.Layer) {
           const pathLayer = layer as L.Path;
           pathLayer.on({
             mouseover: (event) => {
@@ -286,7 +287,7 @@ export default function KeralaMap() {
       geoJsonRef.current = geojson;
 
       const bounds = geojson.getBounds();
-      geojson.eachLayer((layer) => {
+      geojson.eachLayer((layer: L.Layer) => {
         const geoLayer = layer as GeoJSONLayer;
         if (geoLayer.getBounds && geoLayer.feature?.properties?.name) {
           L.marker(geoLayer.getBounds().getCenter(), {
