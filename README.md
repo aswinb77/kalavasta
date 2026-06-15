@@ -1,11 +1,58 @@
-# React + TypeScript + Vite
+# Kalavasta — Kerala Weather Dashboard
 
-This template provides a minimal setup to get React working in Vite with HMR and some ESLint rules.
+Kalavasta is a Kerala-focused weather dashboard built with React, TypeScript, Vite, and Leaflet.
 
-Currently, two official plugins are available:
+## What it does
 
-- [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react) uses [Oxc](https://oxc.rs)
-- [@vitejs/plugin-react-swc](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react-swc) uses [SWC](https://swc.rs/)
+- Renders a Kerala district map with interactive hover and selection
+- Highlights the selected district and user location clearly
+- Fetches live weather from the Open-Meteo API
+- Shows current conditions and a 3-day forecast for the selected district
+- Provides a floating paper-plane locate button to center the map on the user
+
+## Features
+
+- District selection via dropdown or map click
+- Ivory-themed district highlight and hover styling
+- Floating locate button for geolocation
+- Responsive dashboard layout
+- Live Open-Meteo weather integration
+
+## Tech stack
+
+- React
+- TypeScript
+- Vite
+- Leaflet
+- Open-Meteo API
+
+## Run locally
+
+```bash
+npm install
+npm run dev
+```
+
+Then open the local URL shown in your terminal.
+
+## Build for production
+
+```bash
+npm run build
+```
+
+## Notes
+
+- No API key is required for Open-Meteo.
+- Select a district before the weather card appears.
+- Click the floating paper-plane button to locate your browser position.
+
+## Improvements to add
+
+- Better Malayalam district names and local branding
+- Hourly weather view for the selected district
+- A simple summary panel for Kerala-wide weather
+- Deployment to Netlify, Vercel, or GitHub Pages
 
 ## React Compiler
 

@@ -1,4 +1,4 @@
-import { useEffect, useRef } from 'react';
+import { type ChangeEvent, useCallback, useEffect, useRef, useState } from 'react';
 import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
 import './KeralaMap.css';
@@ -11,13 +11,14 @@ import sunny from './assets/sunny.gif';
 import drizzle from './assets/drizzle.gif';
 import logo from './assets/logo.png';
 
-const PALETTE = {
-  navy: '#03110d',
-  green: '#163d2c',
-  green2: '#1f7a4f',
-  accent: '#a8ffb8',
-  ice: '#d4f3da',
-  moss: '#1f6a48',
+type ForecastEntry = {
+  date: string;
+  label: string;
+  maxTemp: number;
+  minTemp: number;
+  precipitation: number;
+  weatherCode: number;
+  icon: string;
 };
 
 type WeatherData = {
@@ -26,6 +27,7 @@ type WeatherData = {
   weatherCode: number;
   condition: string;
   icon: string;
+  forecast: ForecastEntry[];
 };
 
 const districtWeather: { name: string; icon: string; lat: number; lon: number }[] = [
@@ -98,23 +100,24 @@ function style(feature: GeoJSON.Feature): L.PathOptions {
   const districtName = feature.properties?.name as string;
   return {
     fillColor: getDistrictFillColor(districtName),
-    weight: 1.5,
-    opacity: 1,
-    color: '#d4f3da',
+    weight: 1,
+    opacity: 0.95,
+    color: '#f3ead2',
     dashArray: '',
-    fillOpacity: 0.65,
-    className: 'state-border',
+    fillOpacity: 0.32,
+    className: 'unselected-district',
   };
 }
 
 function highlightFeature(e: L.LeafletMouseEvent) {
   const layer = e.target as L.Path;
   layer.setStyle({
-    weight: 2,
-    color: '#F4A261',
+    weight: 4,
+    color: '#f8f0d9',
     dashArray: '0',
-    fillOpacity: 0,
-    opacity: 0.95,
+    fillColor: 'rgba(250, 243, 224, 0.96)',
+    fillOpacity: 0.92,
+    opacity: 1,
   });
   layer.bringToFront();
 }
@@ -123,6 +126,50 @@ function highlightFeature(e: L.LeafletMouseEvent) {
 export default function KeralaMap() {
   const containerRef = useRef<HTMLDivElement>(null);
   const mapRef = useRef<L.Map | null>(null);
+  const geoJsonRef = useRef<L.GeoJSON | null>(null);
+  const selectedDistrictRef = useRef<string>('');
+  const [selectedDistrict, setSelectedDistrict] = useState('');
+  const [loading, setLoading] = useState(true);
+  const [fetchError, setFetchError] = useState<string | null>(null);
+
+  const selectedWeather = selectedDistrict ? weatherDataByDistrict[selectedDistrict] : undefined;
+
+  const selectDistrict = useCallback((districtName: string) => {
+    setSelectedDistrict(districtName);
+    selectedDistrictRef.current = districtName;
+
+    const district = districtWeather.find((d) => d.name === districtName);
+    if (district && mapRef.current) {
+      mapRef.current.flyTo([district.lat, district.lon], 9, { duration: 0.7 });
+    }
+
+    if (geoJsonRef.current) {
+      geoJsonRef.current.eachLayer((layer) => {
+        const pathLayer = layer as L.Path;
+        const geoLayer = layer as GeoJSONLayer;
+        const name = geoLayer.feature?.properties?.name as string | undefined;
+        if (!name) return;
+
+        const isSelected = name === districtName;
+        pathLayer.setStyle({
+          fillColor: isSelected ? 'rgba(250, 243, 224, 0.96)' : getDistrictFillColor(name),
+          fillOpacity: isSelected ? 0.92 : 0.18,
+          color: isSelected ? '#f8f0d9' : '#f3ead2',
+          weight: isSelected ? 4 : 1.2,
+          opacity: isSelected ? 1 : 0.65,
+          className: isSelected ? 'selected-district' : 'unselected-district',
+        });
+
+        if (isSelected) {
+          pathLayer.bringToFront();
+        }
+      });
+    }
+  }, []);
+
+  const handleDistrictChange = (event: ChangeEvent<HTMLSelectElement>) => {
+    selectDistrict(event.target.value);
+  };
 
   useEffect(() => {
     if (!containerRef.current || mapRef.current) return;
@@ -131,10 +178,25 @@ export default function KeralaMap() {
       const weatherResults = await Promise.all(
         districtWeather.map(async (d) => {
           try {
-            const url = `https://api.open-meteo.com/v1/forecast?latitude=${d.lat}&longitude=${d.lon}&current_weather=true&timezone=Asia/Kolkata`;
+            const url = `https://api.open-meteo.com/v1/forecast?latitude=${d.lat}&longitude=${d.lon}&current_weather=true&daily=weathercode,temperature_2m_max,temperature_2m_min,precipitation_sum&timezone=Asia/Kolkata`;
             const res = await fetch(url);
             const json = await res.json();
             const current = json.current_weather ?? { temperature: 0, windspeed: 0, weathercode: 0 };
+            const daily = json.daily ?? {};
+            const dates: string[] = daily.time ?? [];
+            const weatherCodes: number[] = daily.weathercode ?? [];
+            const maxTemps: number[] = daily.temperature_2m_max ?? [];
+            const minTemps: number[] = daily.temperature_2m_min ?? [];
+            const precipitation: number[] = daily.precipitation_sum ?? [];
+            const forecast = dates.slice(0, 3).map((date, index) => ({
+              date,
+              label: new Intl.DateTimeFormat('en-IN', { weekday: 'short' }).format(new Date(date)),
+              maxTemp: maxTemps[index] ?? 0,
+              minTemp: minTemps[index] ?? 0,
+              precipitation: precipitation[index] ?? 0,
+              weatherCode: weatherCodes[index] ?? 0,
+              icon: getWeatherIconForCode(weatherCodes[index] ?? 0),
+            }));
 
             return {
               name: d.name,
@@ -143,9 +205,11 @@ export default function KeralaMap() {
               weatherCode: current.weathercode,
               condition: getWeatherCondition(current.weathercode),
               icon: getWeatherIconForCode(current.weathercode),
+              forecast,
             };
           } catch (error) {
             console.error(`Failed to fetch weather for ${d.name}:`, error);
+            setFetchError('Some weather data failed to load. The app will continue with fallback values.');
             return {
               name: d.name,
               temperature: 0,
@@ -153,6 +217,7 @@ export default function KeralaMap() {
               weatherCode: 0,
               condition: 'Unknown',
               icon: d.icon,
+              forecast: [],
             };
           }
         })
@@ -161,6 +226,7 @@ export default function KeralaMap() {
       weatherResults.forEach((result) => {
         weatherDataByDistrict[result.name] = result;
       });
+      setLoading(false);
 
       const map = L.map(containerRef.current!, { zoomControl: false }).setView([10.5, 76.5], 7);
       mapRef.current = map;
@@ -182,8 +248,24 @@ export default function KeralaMap() {
               pathLayer.openPopup();
             },
             mouseout: () => {
-              geojson.resetStyle(pathLayer);
+              const geoLayer = pathLayer as GeoJSONLayer;
+              const name = geoLayer.feature?.properties?.name as string | undefined;
+              if (name && name === selectedDistrictRef.current) {
+                pathLayer.setStyle({
+                  fillColor: getDistrictFillColor(name),
+                  fillOpacity: 0.85,
+                  color: '#F4A261',
+                  weight: 4,
+                });
+              } else {
+                geojson.resetStyle(pathLayer);
+              }
               pathLayer.closePopup();
+            },
+            click: () => {
+              if (feature.properties) {
+                selectDistrict(feature.properties.name as string);
+              }
             },
           });
           if (feature.properties) {
@@ -201,6 +283,7 @@ export default function KeralaMap() {
           }
         },
       }).addTo(map);
+      geoJsonRef.current = geojson;
 
       const bounds = geojson.getBounds();
       geojson.eachLayer((layer) => {
@@ -226,7 +309,7 @@ export default function KeralaMap() {
         mapRef.current = null;
       }
     };
-  }, []);
+  }, [selectDistrict]);
 
   const handleLocationClick = () => {
     if (!('geolocation' in navigator)) {
@@ -251,21 +334,15 @@ export default function KeralaMap() {
         }
       },
       (error) => {
-        let message = '';
-        switch (error.code) {
-          case error.PERMISSION_DENIED:
-            message = 'Location permission denied. Please allow location access in your browser.';
-            break;
-          case error.POSITION_UNAVAILABLE:
-            message = 'Location information is unavailable.';
-            break;
-          case error.TIMEOUT:
-            message = 'Location request timed out. Try again.';
-            break;
-          default:
-            message = 'An unknown error occurred while fetching your location.';
+        if (error.code === error.PERMISSION_DENIED) {
+          alert('Location permission denied. Please allow location access in your browser.');
+        } else if (error.code === error.POSITION_UNAVAILABLE) {
+          alert('Location information is unavailable.');
+        } else if (error.code === error.TIMEOUT) {
+          alert('Location request timed out. Try again.');
+        } else {
+          alert('An unknown error occurred while fetching your location.');
         }
-        alert(message);
         console.error('Geolocation error:', error);
       },
       {
@@ -277,31 +354,113 @@ export default function KeralaMap() {
   };
 
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', height: '100vh', background: PALETTE.navy }}>
-      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '18px' }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-          <img src={logo} alt="Kalavasta Logo" style={{ width: '42px', height: '42px', objectFit: 'contain' }} />
-          <span style={{ fontSize: '18px', fontWeight: 700, color: PALETTE.ice }}>Kalavasta</span>
+    <div className="app-shell">
+      <header className="topbar">
+        <div className="brand">
+          <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+            <img src={logo} alt="Kalavasta Logo" style={{ width: '42px', height: '42px', objectFit: 'contain' }} />
+            <div>
+              <div className="brand-title">Kalavasta</div>
+              <div className="brand-subtitle">Kerala weather dashboard</div>
+            </div>
+          </div>
         </div>
-        <button
-          type="button"
-          onClick={handleLocationClick}
-          style={{
-            padding: '10px 18px',
-            borderRadius: 999,
-            border: 'none',
-            background: '#8EE6A2',
-            color: '#06140D',
-            cursor: 'pointer',
-            boxShadow: '0 10px 24px rgba(0, 0, 0, 0.22)',
-          }}
-        >
-          Locate Me
+
+        <div className="search-group">
+          <label className="district-label" htmlFor="district-select">Select district</label>
+          <select id="district-select" value={selectedDistrict} onChange={handleDistrictChange}>
+            <option value="">Choose a district</option>
+            {districtWeather.map((district) => (
+              <option key={district.name} value={district.name}>
+                {district.name}
+              </option>
+            ))}
+          </select>
+        </div>
+
+      </header>
+
+      <main className="map-panel">
+        <div ref={containerRef} className="map-container" />
+        <button className="floating-locate-button" type="button" onClick={handleLocationClick} aria-label="Locate user">
+          <span className="button-icon" aria-hidden="true">✈️</span>
+          Locate
         </button>
-      </div>
-      <div style={{ flex: 1, position: 'relative' }}>
-        <div ref={containerRef} style={{ width: '100%', height: '100%' }} />
-      </div>
+
+        {selectedDistrict && (
+          <aside className="weather-card">
+            <div className="weather-card-title">Selected district weather</div>
+            <div className="weather-card-content">
+              <div className="weather-card-icon">
+                <img src={selectedWeather?.icon || sunny} alt={selectedWeather?.condition || 'Weather'} />
+              </div>
+              <div>
+                <div className="weather-card-location">{selectedDistrict}</div>
+                <div className="weather-card-condition">
+                  {selectedWeather?.condition ?? 'Loading weather...'}
+                </div>
+                <div className="weather-card-metrics">
+                  {selectedWeather ? `${selectedWeather.temperature}°C · ${selectedWeather.windSpeed} km/h` : 'Loading...'}
+                </div>
+              </div>
+            </div>
+            {selectedWeather?.forecast && (
+              <div className="forecast-panel">
+                <div className="forecast-header">3-day forecast</div>
+                <div className="forecast-list">
+                  {selectedWeather.forecast.map((day) => (
+                    <div key={day.date} className="forecast-row">
+                      <div className="forecast-day">{day.label}</div>
+                      <div className="forecast-icon">
+                        <img src={day.icon} alt={getWeatherCondition(day.weatherCode)} />
+                      </div>
+                      <div className="forecast-values">
+                        <span>{day.maxTemp}° / {day.minTemp}°</span>
+                        <span>{day.precipitation.toFixed(1)} mm</span>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+            <div className="weather-card-footer">
+              {fetchError || (loading ? 'Fetching live weather for Kerala districts...' : '')}
+            </div>
+          </aside>
+        )}
+
+        {selectedDistrict && (
+          <aside className="legend-panel">
+            <p>Weather legend</p>
+            <div className="legend-items">
+              <div className="legend-item">
+                <span className="legend-badge" style={{ background: '#E9BC70' }} />
+                <span className="label">Odukathey Vail</span>
+              </div>
+              <div className="legend-item">
+                <span className="legend-badge" style={{ background: '#6B7989' }} />
+                <span className="label">Moodal</span>
+              </div>
+              <div className="legend-item">
+                <span className="legend-badge" style={{ background: '#4C6D5F' }} />
+                <span className="label">ChattaMazha</span>
+              </div>
+              <div className="legend-item">
+                <span className="legend-badge" style={{ background: '#3672A6' }} />
+                <span className="label">Mazha</span>
+              </div>
+              <div className="legend-item">
+                <span className="legend-badge" style={{ background: '#175070' }} />
+                <span className="label">Kori Choriyunna Mazha</span>
+              </div>
+              <div className="legend-item">
+                <span className="legend-badge" style={{ background: '#4C1F2F' }} />
+                <span className="label">Edivetti Mazha</span>
+              </div>
+            </div>
+          </aside>
+        )}
+      </main>
     </div>
   );
 }
