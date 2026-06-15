@@ -64,12 +64,12 @@ function getWeatherIconForCode(code: number) {
 }
 
 function getWeatherCondition(code: number) {
-  if (code === 0) return 'Clear';
-  if (code <= 3) return 'Partly cloudy';
-  if (code <= 55) return 'Drizzle';
-  if (code <= 65) return 'Rain';
-  if (code <= 82) return 'Heavy rain';
-  return 'Thunderstorm';
+  if (code === 0) return 'തിളക്കുന്ന വെയിൽ ';
+  if (code <= 3) return 'മൂടൽ ';
+  if (code <= 55) return 'ചാറ്റമഴ';
+  if (code <= 65) return 'മഴ ';
+  if (code <= 82) return 'കോരിച്ചൊരിയുന്ന മഴ';
+  return 'ഇടിവെട്ടി മഴ ';
 }
 
 function findFillColor(code: number) {
@@ -367,7 +367,6 @@ export default function KeralaMap() {
         </div>
 
         <div className="search-group">
-          <label className="district-label" htmlFor="district-select">Select district</label>
           <select id="district-select" value={selectedDistrict} onChange={handleDistrictChange}>
             <option value="">Choose a district</option>
             {districtWeather.map((district) => (
@@ -435,27 +434,27 @@ export default function KeralaMap() {
             <div className="legend-items">
               <div className="legend-item">
                 <span className="legend-badge" style={{ background: '#E9BC70' }} />
-                <span className="label">Odukathey Vail</span>
+                <span className="label">തിളക്കുന്ന വെയിൽ</span>
               </div>
               <div className="legend-item">
                 <span className="legend-badge" style={{ background: '#6B7989' }} />
-                <span className="label">Moodal</span>
+                <span className="label">മൂടൽ </span>
               </div>
               <div className="legend-item">
                 <span className="legend-badge" style={{ background: '#4C6D5F' }} />
-                <span className="label">ChattaMazha</span>
+                <span className="label">ചാറ്റമഴ</span>
               </div>
               <div className="legend-item">
                 <span className="legend-badge" style={{ background: '#3672A6' }} />
-                <span className="label">Mazha</span>
+                <span className="label">മഴ </span>
               </div>
               <div className="legend-item">
                 <span className="legend-badge" style={{ background: '#175070' }} />
-                <span className="label">Kori Choriyunna Mazha</span>
+                <span className="label">കോരിച്ചൊരിയുന്ന മഴ</span>
               </div>
               <div className="legend-item">
                 <span className="legend-badge" style={{ background: '#4C1F2F' }} />
-                <span className="label">Edivetti Mazha</span>
+                <span className="label">ഇടിവെട്ടി മഴ</span>
               </div>
             </div>
           </aside>
